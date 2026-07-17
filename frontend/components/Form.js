@@ -28,56 +28,107 @@ const toppings = [
 ]
 
 export default function Form() {
-    const [successMessage, setSuccessMessage] = useState('')
-    const [failureMessage, setFailureMessage] = useState('')
-    const [isFormValid, setIsFormValid] = useState(false)
-    const [fullName, setFullName] = useState('')
-    const [size, setSize] = useState('')
-    const [selectedToppings, setSelectedToppings] = useState([])
 
-    const handleToppingChange = (event) => {
-      const {name, checked} = event.target
-      setSelectedToppings(currentToppings => {
-        if (checked) {
-          return [...currentToppings, name]
+  const initialForm = {
+    fullName: '',
+    size: '',
+    toppings: []
+  }
+
+  const [form, setForm] = useState(initialForm)
+ 
+  const [successMessage, setSuccessMessage] = useState('')
+  const [failureMessage, setFailureMessage] = useState('')
+  const [errors, setErrors] = useState({
+    fullName: '',
+    size: '',
+    selectedToppings: ''
+  })
+  const [isFormValid, setIsFormValid] = useState(false)
+    // const [fullName, setFullName] = useState('')
+    // const [size, setSize] = useState('')
+    // const [selectedToppings, setSelectedToppings] = useState([])
+
+    // const handleToppingChange = (event) => {
+    //   const {name, checked} = event.target
+    //   setSelectedToppings(currentToppings => {
+    //     if (checked) {
+    //       return [...currentToppings, name]
+    //     }
+
+    //     return currentToppings.filter(toppingId => toppingId !== name)
+    //   })
+    // }
+
+    const onChange = async event => {
+         const {type, name, value, checked} = event.target
+         let newForm 
+
+         if(type === 'checkbox') {
+          newForm = {
+            ...form, 
+            toppings: checked ? [...form.toppings, name] : form.toppings.filter(toppingId => 
+               toppingId !== name),
+            }
+          }else {
+            newForm = {
+              ...form, 
+              [name]: value,
+            }
+          }
+          setForm(newForm)
+
+          if(type !== 'checkbox') {
+            try {
+              await inputSchema.validateAt(name, newForm)
+
+              setErrors(currentErrors => ({
+                ...currentErrors, [name]: '',
+              }))
+            } catch (error) {
+              setErrors(currentErrors => ({
+                ...currentErrors,
+                [name]: error.message
+              }))
+            }
+          }
         }
 
-        return currentToppings.filter(toppingId => toppingId !== name)
-      })
-    }
+          useEffect(() => {
+            inputSchema.isValid(form).then(valid => {
+                 setIsFormValid(valid)
+            })
+          }, [form])
+
+
 
   const handleSubmit = async event => {
     event.preventDefault()
     // 👇 Here you will handle the form submission.
-    // if(validationErrors.fullNameTooShort || validationErrors.fullNameTooLong 
-    //   || validationErrors.sizeIncorrect) {
-    //     alert('Form has errors. Please fix them before submitting.')
-    //     return
-    //   }
-       useEffect(() => {
-        const validateForm = async () => {
-          try {
-            const response = axios.post('http://localhost:9009/api/order', newOrder);
-            setSuccessMessage(response.data.message);
-           setFailureMessage('');
-            const newOrder = {
-               fullName,
-               size,
-               toppings: selectedToppings,
-      } 
-              inputSchema.isFormValid(newOrder).then(valid => {
-                         setIsFormValid(valid);
-              })
-
-          }catch (error) {
-            setFailureMessage('Something went wrong');
-            setSuccessMessage('');
-          }
-        }
-        validateForm();
-      }, [fullName, size, selectedToppings]);
-     
+    
+    if(!isFormValid) {
+      return   
   }
+
+  try {
+     const response = await axios.post('http://localhost:9009/api/order', form)
+
+     setSuccessMessage(response.data.message)
+     setFailureMessage('')
+
+     setForm(initialForm)
+
+     setErrors({
+      fullName: '',
+      size: '',
+      selectedToppings: ''
+     })
+  }  catch(error) {
+     setSuccessMessage('')
+      setFailureMessage(error.response.data.message)  
+  }
+}
+
 
   return (
     <form onSubmit={handleSubmit}>
@@ -92,18 +143,20 @@ export default function Form() {
           <label htmlFor="fullName">Full Name</label><br />
           <input 
           placeholder="Type full name" 
-          id="fullName" 
+          id="fullName"
+          name="fullName"
           type="text"
-          value={fullName}
-          onChange={e => setFullName(e.target.value)} />
+          value={form.fullName}
+          onChange={onChange} />
         </div>
-        {true && <div className='error'>Bad value</div>}
+        {errors.fullName && <div className='error'>{errors.fullName}</div>}
       </div>
 
       <div className="input-group">
         <div>
           <label htmlFor="size">Size</label><br />
-          <select id="size">
+          <select id="size" name="size" value={form.size} onChange={onChange}>
+            {/* //Drop down menu size options rendering */}
             <option value="">----Choose Size----</option>
             {/* Fill out the missing options */}
              <option value="S">Small</option>
@@ -111,7 +164,7 @@ export default function Form() {
             <option value="L">Large</option>
           </select>
         </div>
-        {true && <div className='error'>Bad value</div>}
+        {errors.size && <div className='error'>{errors.size}</div>}
       </div>
 
       <div className="input-group">
@@ -120,6 +173,20 @@ export default function Form() {
         {/* Pineapple */}
         {/* Mushrooms */}
         {/* Ham */}
+
+        {toppings.map(topping => (
+          <label key={topping.topping_id}>
+            <input 
+              name={topping.topping_id}
+              type="checkbox"
+              checked={form.toppings.includes(topping.topping_id)}
+              onChange={onChange}
+            />
+            {topping.text}
+            <br />
+          </label>
+        ))}
+
         {/* <label key="1">
           <input
             name="Pepperoni"
@@ -157,7 +224,8 @@ export default function Form() {
         </label> */}
       </div>
       {/* 👇 Make sure the submit stays disabled until the form validates! */}
-      <input type="submit" />
+      <input type="submit" disabled={!isFormValid}/>
     </form>
   )
-}
+    }
+  
